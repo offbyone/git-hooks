@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# Copyright (c) 2010, Benjamin C. Meyer <ben@meyerhome.net>
+# Copyright (c) 2010-2012, Benjamin C. Meyer <ben@meyerhome.net>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -35,19 +35,21 @@ function hook_dirs
     fi
     echo "${HOME}/.git_hooks${hook}"
     GITDIR=`git rev-parse --git-dir`
-    cd $GITDIR/..
+    if [ `git config --get core.bare` = 'true' ]; then
+        cd $GITDIR
+    else
+        cd $GITDIR/..
+    fi
     echo "${PWD}/git_hooks${hook}"
+    WSDIR=`git rev-parse --show-toplevel`
+    cd $WSDIR
     echo "${PWD}/.githooks${hook}"
     eval echo "`git config hooks.global`"${hook}
 }
 
 function list_hooks_in_dir
 {
-	  if [[ $OSTYPE =~ 'darwin' ]] ; then	
-        find "${1}/" -type f 2>/dev/null | grep -v "^.$" | sort
-    else
-        find "${1}/" -executable -type f 2>/dev/null | grep -v "^.$" | sort -V
-    fi
+    find -L "${1}/" -perm +111 -type f 2>/dev/null | grep -v "^.$" | sort
 }
 
 function run_hooks
@@ -97,10 +99,14 @@ function install_hooks
     fi
     cd $GITDIR
     if [ "${1}" = "--install" ] ; then
+        if [ -d hooks.old ] ; then
+            echo "hooks.old already exists, perhaps you already installed?"
+            return 1
+        fi
         mv hooks hooks.old
         mkdir hooks
         cd hooks
-        for file in applypatch-msg commit-msg post-applypatch post-checkout post-commit post-merge post-receive pre-applypatch pre-auto-gc pre-commit prepare-commit-msg pre-rebase pre-receive update
+        for file in applypatch-msg commit-msg post-applypatch post-checkout post-commit post-merge post-receive pre-applypatch pre-auto-gc pre-commit prepare-commit-msg pre-rebase pre-receive pre-push update
         do
             echo '#!/bin/bash
 git-hooks run "$0" "$@"' > "${file}"
@@ -157,7 +163,7 @@ case $1 in
     --install|--uninstall )
         install_hooks "$1"
         ;;
-    -h|--help )
+    -h|--help|-? )
         echo 'Git Hooks'
         echo ''
         echo 'Options:'
